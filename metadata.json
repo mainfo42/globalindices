@@ -1,0 +1,6 @@
+{
+  "name": "Global Indices Live Terminal",
+  "description": "Real-time market dashboard tracking the TSX, Nasdaq, and Dow Jones indices with 24-hour interactive curves and dynamic performance styling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

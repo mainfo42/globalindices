@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@keyframes flash-green {
+  0% { background-color: rgba(16, 185, 129, 0.28); color: #10b981; }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-red {
+  0% { background-color: rgba(244, 63, 94, 0.28); color: #f43f5e; }
+  100% { background-color: transparent; }
+}
+
+.flash-up {
+  animation: flash-green 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.flash-down {
+  animation: flash-red 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
