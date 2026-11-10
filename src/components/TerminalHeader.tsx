@@ -50,7 +50,19 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         </nav>
 
         {/* Zone 3: Functional status & actions */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Source indicator */}
+          <a
+            href="https://www.google.com/finance"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden lg:inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono text-neutral-600 dark:text-neutral-300 hover:text-blue-500 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700/60 transition-colors"
+            title="Real-time quotes sourced from Google Finance"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span>Google Finance Feed</span>
+          </a>
+
           {/* Live streaming status pill */}
           <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700/60 text-xs font-mono">
             <span

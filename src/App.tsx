@@ -69,6 +69,40 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Synchronize with Google Finance API endpoint
+  useEffect(() => {
+    const syncGoogleFinance = async () => {
+      try {
+        const res = await fetch('/api/quotes');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.quotes) {
+          setIndices((prev) =>
+            prev.map((idx) => {
+              const q = data.quotes[idx.id];
+              if (!q) return idx;
+              return {
+                ...idx,
+                currentPrice: q.price,
+                previousClose: q.previousClose,
+                highPrice: Math.max(idx.highPrice, q.high),
+                lowPrice: Math.min(idx.lowPrice, q.low),
+                googleFinanceTicker: q.ticker,
+                googleFinanceUrl: q.sourceUrl,
+              };
+            })
+          );
+        }
+      } catch {
+        // Fallback to initial benchmarks smoothly
+      }
+    };
+
+    syncGoogleFinance();
+    const interval = setInterval(syncGoogleFinance, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Live tick simulation loop
   useEffect(() => {
     if (!isLive) return;

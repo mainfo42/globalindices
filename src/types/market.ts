@@ -44,4 +44,6 @@ export interface MarketIndex {
   };
   peRatio: number;
   divYield: string;
+  googleFinanceTicker: string;
+  googleFinanceUrl: string;
 }

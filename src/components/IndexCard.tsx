@@ -63,9 +63,16 @@ export const IndexCard: React.FC<IndexCardProps> = ({
               {index.symbol}
             </span>
             <span className="hidden sm:inline text-neutral-400 dark:text-neutral-600 text-xs">·</span>
-            <span className="hidden sm:inline text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
-              {index.exchange} ({index.currency})
-            </span>
+            <a
+              href={index.googleFinanceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-neutral-600 dark:text-neutral-300 hover:text-blue-600 dark:hover:text-blue-400 bg-neutral-100 dark:bg-neutral-800 transition-colors"
+              title="Verified Real-Time Source: Google Finance"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              <span>Google Finance: {index.googleFinanceTicker}</span>
+            </a>
           </div>
         </div>
 

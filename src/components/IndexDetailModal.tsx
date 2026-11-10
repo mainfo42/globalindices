@@ -54,8 +54,17 @@ export const IndexDetailModal: React.FC<IndexDetailModalProps> = ({
                   {index.symbol}
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                {index.exchange} · Base Currency: {index.currency} · Session: Regular Hours
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-2">
+                <span>{index.exchange} ({index.currency})</span>
+                <span aria-hidden="true">·</span>
+                <a
+                  href={index.googleFinanceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-500 hover:underline font-mono inline-flex items-center gap-1 font-semibold"
+                >
+                  Google Finance: {index.googleFinanceTicker} ↗
+                </a>
               </p>
             </div>
           </div>

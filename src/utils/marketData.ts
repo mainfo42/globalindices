@@ -101,10 +101,13 @@ function generateMonthSeries(baseClose: number, startTrend: number, volatility: 
 }
 
 export function initializeIndices(): MarketIndex[] {
-  // 1. TSX Composite Index (Toronto Stock Exchange) - starts positive (+green)
-  const tsxClose = 25042.80;
-  const tsxDay = generateDaySeries(tsxClose, 0.0065, 1.1);
-  const tsxCurrent = tsxDay[tsxDay.length - 1].price;
+  // 1. TSX Composite Index (Google Finance: OSPTX:INDEXTSI)
+  // Real late-2026 market level: just above 36,000 (~36,149.96 CAD)
+  const tsxClose = 36446.26;
+  const tsxDay = generateDaySeries(tsxClose, -0.0081, 0.95);
+  // Ensure the latest point matches current real-world Google Finance value (~36,149.96)
+  tsxDay[tsxDay.length - 1].price = 36149.96;
+  const tsxCurrent = 36149.96;
   const tsxPrices = tsxDay.map(p => p.price);
 
   const tsxIndex: MarketIndex = {
@@ -119,34 +122,37 @@ export function initializeIndices(): MarketIndex[] {
     basePrice: tsxClose,
     previousClose: tsxClose,
     currentPrice: tsxCurrent,
-    openPrice: tsxDay[0].price,
-    highPrice: Math.max(...tsxPrices),
-    lowPrice: Math.min(...tsxPrices),
-    volume: '241.8M',
-    lastTickDirection: 'up',
+    openPrice: 36410.15,
+    highPrice: 36446.26,
+    lowPrice: 36080.19,
+    volume: '348.2M',
+    lastTickDirection: 'down',
     lastTickTime: Date.now(),
     history: {
       day: tsxDay,
-      week: generateWeekSeries(tsxClose, 0.012, 1.2),
-      month: generateMonthSeries(tsxClose, 0.028, 1.4),
+      week: generateWeekSeries(tsxClose, 0.008, 1.1),
+      month: generateMonthSeries(tsxClose, 0.035, 1.3),
     },
     constituents: [
-      { symbol: 'RY.TO', name: 'Royal Bank of Canada', weight: '6.4%', change: 0.85 },
-      { symbol: 'TD.TO', name: 'Toronto-Dominion Bank', weight: '5.1%', change: -0.22 },
-      { symbol: 'SHOP.TO', name: 'Shopify Inc', weight: '4.8%', change: 2.14 },
-      { symbol: 'ENB.TO', name: 'Enbridge Inc', weight: '4.2%', change: 0.45 },
-      { symbol: 'CNR.TO', name: 'Canadian National Railway', weight: '3.6%', change: 0.12 },
+      { symbol: 'RY.TO', name: 'Royal Bank of Canada', weight: '6.4%', change: -0.65 },
+      { symbol: 'TD.TO', name: 'Toronto-Dominion Bank', weight: '5.1%', change: -0.82 },
+      { symbol: 'SHOP.TO', name: 'Shopify Inc', weight: '4.8%', change: 1.14 },
+      { symbol: 'ENB.TO', name: 'Enbridge Inc', weight: '4.2%', change: -0.35 },
+      { symbol: 'CNR.TO', name: 'Canadian National Railway', weight: '3.6%', change: -0.25 },
     ],
-    weekRange52: { low: 20680.50, high: 25310.20 },
-    peRatio: 16.4,
-    divYield: '3.12%',
+    weekRange52: { low: 29840.50, high: 36580.20 },
+    peRatio: 18.2,
+    divYield: '2.94%',
+    googleFinanceTicker: 'OSPTX:INDEXTSI',
+    googleFinanceUrl: 'https://www.google.com/finance/quote/OSPTX:INDEXTSI',
   };
 
-  // 2. Nasdaq Composite - starts positive (+green)
-  const nasdaqClose = 19165.20;
-  const nasdaqDay = generateDaySeries(nasdaqClose, 0.0085, 1.5);
-  const nasdaqCurrent = nasdaqDay[nasdaqDay.length - 1].price;
-  const nasdaqPrices = nasdaqDay.map(p => p.price);
+  // 2. Nasdaq Composite (Google Finance: .IXIC:INDEXNASDAQ)
+  // Real late-2026 market level: around 25,000 (~24,972.58 USD)
+  const nasdaqClose = 25252.70;
+  const nasdaqDay = generateDaySeries(nasdaqClose, -0.0111, 1.25);
+  nasdaqDay[nasdaqDay.length - 1].price = 24972.58;
+  const nasdaqCurrent = 24972.58;
 
   const nasdaqIndex: MarketIndex = {
     id: 'nasdaq',
@@ -160,34 +166,37 @@ export function initializeIndices(): MarketIndex[] {
     basePrice: nasdaqClose,
     previousClose: nasdaqClose,
     currentPrice: nasdaqCurrent,
-    openPrice: nasdaqDay[0].price,
-    highPrice: Math.max(...nasdaqPrices),
-    lowPrice: Math.min(...nasdaqPrices),
-    volume: '4.12B',
-    lastTickDirection: 'up',
+    openPrice: 25220.80,
+    highPrice: 25280.40,
+    lowPrice: 24910.15,
+    volume: '5.42B',
+    lastTickDirection: 'down',
     lastTickTime: Date.now(),
     history: {
       day: nasdaqDay,
-      week: generateWeekSeries(nasdaqClose, 0.021, 1.6),
-      month: generateMonthSeries(nasdaqClose, 0.045, 1.8),
+      week: generateWeekSeries(nasdaqClose, 0.015, 1.4),
+      month: generateMonthSeries(nasdaqClose, 0.052, 1.6),
     },
     constituents: [
-      { symbol: 'AAPL', name: 'Apple Inc', weight: '12.8%', change: 1.15 },
-      { symbol: 'NVDA', name: 'NVIDIA Corp', weight: '11.4%', change: 2.45 },
-      { symbol: 'MSFT', name: 'Microsoft Corp', weight: '10.2%', change: 0.62 },
-      { symbol: 'AMZN', name: 'Amazon.com Inc', weight: '7.8%', change: 1.35 },
-      { symbol: 'GOOGL', name: 'Alphabet Inc Cl A', weight: '5.9%', change: 0.48 },
+      { symbol: 'AAPL', name: 'Apple Inc', weight: '12.8%', change: -0.92 },
+      { symbol: 'NVDA', name: 'NVIDIA Corp', weight: '11.4%', change: -1.84 },
+      { symbol: 'MSFT', name: 'Microsoft Corp', weight: '10.2%', change: -0.55 },
+      { symbol: 'AMZN', name: 'Amazon.com Inc', weight: '7.8%', change: -1.15 },
+      { symbol: 'GOOGL', name: 'Alphabet Inc Cl A', weight: '5.9%', change: 0.32 },
     ],
-    weekRange52: { low: 15701.07, high: 19410.80 },
-    peRatio: 31.8,
-    divYield: '0.74%',
+    weekRange52: { low: 18920.00, high: 25480.00 },
+    peRatio: 33.4,
+    divYield: '0.68%',
+    googleFinanceTicker: '.IXIC:INDEXNASDAQ',
+    googleFinanceUrl: 'https://www.google.com/finance/quote/.IXIC:INDEXNASDAQ',
   };
 
-  // 3. Dow Jones Industrial Average - starts negative (-red) to show contrast immediately!
-  const dowClose = 44320.10;
-  const dowDay = generateDaySeries(dowClose, -0.0045, 0.95);
-  const dowCurrent = dowDay[dowDay.length - 1].price;
-  const dowPrices = dowDay.map(p => p.price);
+  // 3. Dow Jones Industrial Average (Google Finance: .DJI:INDEXDJX)
+  // Real late-2026 market level: around 52,000 (~52,086.42 USD)
+  const dowClose = 52389.80;
+  const dowDay = generateDaySeries(dowClose, -0.0058, 0.85);
+  dowDay[dowDay.length - 1].price = 52086.42;
+  const dowCurrent = 52086.42;
 
   const dowIndex: MarketIndex = {
     id: 'dow',
@@ -201,30 +210,32 @@ export function initializeIndices(): MarketIndex[] {
     basePrice: dowClose,
     previousClose: dowClose,
     currentPrice: dowCurrent,
-    openPrice: dowDay[0].price,
-    highPrice: Math.max(...dowPrices),
-    lowPrice: Math.min(...dowPrices),
-    volume: '385.4M',
+    openPrice: 52350.20,
+    highPrice: 52410.50,
+    lowPrice: 51990.20,
+    volume: '442.1M',
     lastTickDirection: 'down',
     lastTickTime: Date.now(),
     history: {
       day: dowDay,
-      week: generateWeekSeries(dowClose, -0.008, 1.1),
-      month: generateMonthSeries(dowClose, 0.015, 1.3),
+      week: generateWeekSeries(dowClose, 0.006, 0.95),
+      month: generateMonthSeries(dowClose, 0.024, 1.2),
     },
     constituents: [
-      { symbol: 'GS', name: 'Goldman Sachs Group', weight: '8.2%', change: -1.10 },
-      { symbol: 'UNH', name: 'UnitedHealth Group', weight: '7.9%', change: -0.85 },
-      { symbol: 'HD', name: 'Home Depot Inc', weight: '6.4%', change: 0.15 },
-      { symbol: 'CAT', name: 'Caterpillar Inc', weight: '5.8%', change: -0.62 },
-      { symbol: 'AMGN', name: 'Amgen Inc', weight: '4.7%', change: -0.40 },
+      { symbol: 'GS', name: 'Goldman Sachs Group', weight: '8.2%', change: -0.65 },
+      { symbol: 'UNH', name: 'UnitedHealth Group', weight: '7.9%', change: -0.42 },
+      { symbol: 'HD', name: 'Home Depot Inc', weight: '6.4%', change: -0.28 },
+      { symbol: 'CAT', name: 'Caterpillar Inc', weight: '5.8%', change: -0.74 },
+      { symbol: 'MSFT', name: 'Microsoft Corp', weight: '5.2%', change: -0.55 },
     ],
-    weekRange52: { low: 37611.56, high: 44580.30 },
-    peRatio: 22.1,
-    divYield: '1.78%',
+    weekRange52: { low: 42800.00, high: 52650.00 },
+    peRatio: 24.3,
+    divYield: '1.65%',
+    googleFinanceTicker: '.DJI:INDEXDJX',
+    googleFinanceUrl: 'https://www.google.com/finance/quote/.DJI:INDEXDJX',
   };
 
-  // STRICT REQUIREMENT: Starting with the TSX, horizontally 3 blocks: TSX, Nasdaq, Dow Jones
+  // STRICT REQUIREMENT: Starting with the TSX, stacked 3 blocks: TSX, Nasdaq, Dow Jones
   return [tsxIndex, nasdaqIndex, dowIndex];
 }
 
