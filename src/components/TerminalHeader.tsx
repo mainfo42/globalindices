@@ -8,6 +8,8 @@ interface TerminalHeaderProps {
   onToggleSound: () => void;
   isLive: boolean;
   currentTimeStr: string;
+  estTimeStr?: string;
+  isTradingWindow?: boolean;
 }
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
@@ -17,6 +19,8 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   onToggleSound,
   isLive,
   currentTimeStr,
+  estTimeStr,
+  isTradingWindow,
 }) => {
   return (
     <header className="w-full border-b border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md sticky top-0 z-30 transition-colors">
@@ -50,32 +54,33 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         </nav>
 
         {/* Zone 3: Functional status & actions */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Source indicator */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Google Finance Feed Badge with EST Window */}
           <a
             href="https://www.google.com/finance"
             target="_blank"
             rel="noreferrer"
-            className="hidden lg:inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono text-neutral-600 dark:text-neutral-300 hover:text-blue-500 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700/60 transition-colors"
-            title="Real-time quotes sourced from Google Finance"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono text-neutral-700 dark:text-neutral-200 hover:text-blue-500 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700/60 transition-colors"
+            title={
+              isTradingWindow
+                ? 'Markets Open: Real-time 1-minute pulls active from Google Finance'
+                : 'Markets Closed (5:00 PM - 9:00 AM EST): Values frozen at official Google Finance close'
+            }
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <span>Google Finance Feed</span>
-          </a>
-
-          {/* Live streaming status pill */}
-          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700/60 text-xs font-mono">
             <span
               className={`w-2 h-2 rounded-full ${
-                isLive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                isTradingWindow ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
               }`}
             />
-            <span className="text-neutral-700 dark:text-neutral-300 font-medium">
-              {isLive ? 'FEED LIVE' : 'FEED PAUSED'}
+            <span className="font-semibold">
+              {isTradingWindow ? 'Google Finance · Live 1m' : 'Google Finance · Frozen'}
             </span>
-            <span className="text-neutral-400 dark:text-neutral-500">·</span>
-            <span className="text-neutral-500 dark:text-neutral-400">{currentTimeStr}</span>
-          </div>
+            {estTimeStr && (
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400 border-l border-neutral-300 dark:border-neutral-700 pl-1.5">
+                {estTimeStr}
+              </span>
+            )}
+          </a>
 
           {/* Sound tick toggle */}
           <button

@@ -18,8 +18,8 @@ export const IndexDetailModal: React.FC<IndexDetailModalProps> = ({
 }) => {
   if (!index) return null;
 
-  const changeValue = index.currentPrice - index.previousClose;
-  const changePct = (changeValue / index.previousClose) * 100;
+  const changeValue = index.change !== undefined ? index.change : (index.currentPrice - index.previousClose);
+  const changePct = index.changePercent !== undefined ? index.changePercent : ((changeValue / index.previousClose) * 100);
   const isPositive = changeValue >= 0;
 
   const activeData = index.history[timeframe];

@@ -26,6 +26,8 @@ export interface MarketIndex {
   basePrice: number;
   previousClose: number;
   currentPrice: number;
+  change?: number;
+  changePercent?: number;
   openPrice: number;
   highPrice: number;
   lowPrice: number;

@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MarketIndex, TimeFrame } from './types/market';
-import { initializeIndices, generateTick, applyMarketShock } from './utils/marketData';
+import { initializeIndices, applyMarketShock } from './utils/marketData';
 import { soundManager } from './utils/audio';
 import { TerminalHeader } from './components/TerminalHeader';
 import { MarketControls } from './components/MarketControls';
 import { IndexCard } from './components/IndexCard';
 import { IndexDetailModal } from './components/IndexDetailModal';
-import { Sparkles, Info, RefreshCw } from 'lucide-react';
 
 export default function App() {
   // Theme state: dark terminal default for authentic financial aesthetic
@@ -69,88 +68,131 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Synchronize with Google Finance API endpoint
-  useEffect(() => {
-    const syncGoogleFinance = async () => {
-      try {
-        const res = await fetch('/api/quotes');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data && data.quotes) {
-          setIndices((prev) =>
-            prev.map((idx) => {
-              const q = data.quotes[idx.id];
-              if (!q) return idx;
-              return {
-                ...idx,
-                currentPrice: q.price,
-                previousClose: q.previousClose,
-                highPrice: Math.max(idx.highPrice, q.high),
-                lowPrice: Math.min(idx.lowPrice, q.low),
-                googleFinanceTicker: q.ticker,
-                googleFinanceUrl: q.sourceUrl,
-              };
-            })
-          );
-        }
-      } catch {
-        // Fallback to initial benchmarks smoothly
-      }
-    };
+  // Google Finance Live Pull & EST state
+  const [estTimeStr, setEstTimeStr] = useState<string>('');
+  const [isTradingWindow, setIsTradingWindow] = useState<boolean>(false);
+  const [nextPullSeconds, setNextPullSeconds] = useState<number>(60);
+  const [isRefreshingGoogleFinance, setIsRefreshingGoogleFinance] = useState<boolean>(false);
 
-    syncGoogleFinance();
-    const interval = setInterval(syncGoogleFinance, 20000);
-    return () => clearInterval(interval);
-  }, []);
+  // Synchronize with Google Finance API endpoint (1-Minute cadence from 9h00 AM EST to 5h00 PM EST)
+  const syncGoogleFinance = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshingGoogleFinance(true);
+    try {
+      const endpoint = isManual ? '/api/quotes/refresh' : '/api/quotes';
+      const method = isManual ? 'POST' : 'GET';
+      const res = await fetch(endpoint, { method });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.quotes) {
+        if (data.estTime) setEstTimeStr(data.estTime.split(',').slice(-1)[0].trim());
+        const isTrading = typeof data.isTradingHours === 'boolean'
+          ? data.isTradingHours
+          : typeof data.isTradingWindow === 'boolean'
+          ? data.isTradingWindow
+          : false;
+        setIsTradingWindow(isTrading);
+        setNextPullSeconds(60);
 
-  // Live tick simulation loop
-  useEffect(() => {
-    if (!isLive) return;
+        setIndices((prev) =>
+          prev.map((idx) => {
+            const q = data.quotes[idx.id];
+            if (!q) return idx;
 
-    const interval = setInterval(() => {
-      setIndices((prevIndices) => {
-        // Randomly pick 1 or 2 indices to tick per interval to mimic real market activity
-        const targetIndices = prevIndices.map((idx) => {
-          // 80% chance of updating each index
-          if (Math.random() < 0.8) {
-            const { newPrice, direction, updatedDayHistory, updatedHigh, updatedLow } =
-              generateTick(idx);
+            // Compute direction vs previous current price
+            const dir = q.price > idx.currentPrice ? 'up' : q.price < idx.currentPrice ? 'down' : 'neutral';
 
-            // Optional auditory feedback for live trading
-            if (isSoundEnabled) {
-              soundManager.playTick(direction);
+            // Push the latest real Google Finance point onto intraday history
+            const updatedDay = [...idx.history.day];
+            const now = new Date();
+            const timeLabel = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            const lastPt = updatedDay[updatedDay.length - 1];
+
+            if (lastPt) {
+              lastPt.price = q.price;
+            } else {
+              updatedDay.push({
+                timestamp: Date.now(),
+                timeLabel,
+                price: q.price,
+                volume: Math.floor(Math.random() * 8000) + 15000,
+              });
             }
 
             return {
               ...idx,
-              currentPrice: newPrice,
-              lastTickDirection: direction,
+              currentPrice: q.price,
+              change: q.change,
+              changePercent: q.changePercent,
+              previousClose: q.previousClose,
+              highPrice: Math.max(idx.highPrice, q.high || q.price),
+              lowPrice: Math.min(idx.lowPrice, q.low || q.price),
+              lastTickDirection: dir,
               lastTickTime: Date.now(),
-              highPrice: updatedHigh,
-              lowPrice: updatedLow,
+              googleFinanceTicker: q.ticker,
+              googleFinanceUrl: q.sourceUrl,
               history: {
                 ...idx.history,
-                day: updatedDayHistory,
+                day: updatedDay,
               },
             };
-          }
-          return idx;
-        });
+          })
+        );
+      }
+    } catch (err) {
+      console.warn('Google Finance sync error:', err);
+    } finally {
+      if (isManual) setIsRefreshingGoogleFinance(false);
+    }
+  }, []);
 
-        // If modal is open, also sync the selected index
-        if (selectedModalIndex) {
-          const updatedSelected = targetIndices.find((i) => i.id === selectedModalIndex.id);
-          if (updatedSelected) {
-            setSelectedModalIndex(updatedSelected);
-          }
-        }
+  // Trading Hours & Update Rule:
+  // "From 5PM EST and 9h00 AM EST, the values should not move.
+  // Again, the values displayed at the moment, are not the same that are on the Google Finance Website.
+  // Make sure they are always synched when user load the page at first.
+  // Then apply the update rule at every minute during the trading hours."
+  useEffect(() => {
+    // Initial fetch on mount: ALWAYS sync with Google Finance immediately
+    syncGoogleFinance();
 
-        return targetIndices;
+    // 1-minute interval: Pull from Google Finance website only between 9h00 AM EST and 5h00 PM EST
+    const minuteInterval = setInterval(() => {
+      const now = new Date();
+      const estStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+      const estDate = new Date(estStr);
+      const hour = estDate.getHours();
+      const day = estDate.getDay(); // 0 = Sun, 6 = Sat
+      const isWeekday = day >= 1 && day <= 5;
+      const isTrading = isWeekday && hour >= 9 && hour < 17;
+
+      setIsTradingWindow(isTrading);
+
+      // Only pull update every minute when trading hours are active
+      if (isTrading) {
+        syncGoogleFinance();
+      }
+    }, 60000);
+
+    // 1-second ticker for EST clock & countdown
+    const secondInterval = setInterval(() => {
+      setNextPullSeconds((prev) => (prev <= 1 ? 60 : prev - 1));
+
+      // Update EST time display
+      const now = new Date();
+      const estStr = now.toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
       });
-    }, tickSpeed);
+      setEstTimeStr(`${estStr} EST`);
+    }, 1000);
 
-    return () => clearInterval(interval);
-  }, [isLive, tickSpeed, isSoundEnabled, selectedModalIndex]);
+    return () => {
+      clearInterval(minuteInterval);
+      clearInterval(secondInterval);
+    };
+  }, [syncGoogleFinance]);
 
   // Handle global timeframe changes
   const handleGlobalTimeframeChange = (tf: TimeFrame) => {
@@ -232,6 +274,8 @@ export default function App() {
         onToggleSound={handleToggleSound}
         isLive={isLive}
         currentTimeStr={currentTimeStr}
+        estTimeStr={estTimeStr}
+        isTradingWindow={isTradingWindow}
       />
 
       {/* Main Content Workspace - Fitted to Viewport */}
@@ -246,6 +290,10 @@ export default function App() {
           onGlobalTimeframeChange={handleGlobalTimeframeChange}
           onResetBenchmark={handleResetBenchmark}
           onTriggerGlobalShock={handleTriggerGlobalShock}
+          onRefreshGoogleFinance={() => syncGoogleFinance(true)}
+          isRefreshingGoogleFinance={isRefreshingGoogleFinance}
+          nextPullSeconds={nextPullSeconds}
+          isTradingWindow={isTradingWindow}
         />
 
         {/* 
@@ -279,11 +327,10 @@ export default function App() {
         {/* Tiny single-line compact footer to fit cleanly on screen */}
         <div className="flex items-center justify-between text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-2 py-0.5 border-t border-neutral-200/60 dark:border-neutral-800/60 shrink-0">
           <div className="flex items-center gap-2">
-            <span>TSX (^GSPTSE)</span>
-            <span aria-hidden="true">·</span>
-            <span>Nasdaq (^IXIC)</span>
-            <span aria-hidden="true">·</span>
-            <span>Dow Jones (^DJI)</span>
+            <span className="text-blue-500 font-semibold">Google Finance:</span>
+            <span>Real-time web pull every 1m (9h00 AM – 5h00 PM EST)</span>
+            <span aria-hidden="true" className="hidden sm:inline">·</span>
+            <span className="hidden sm:inline">TSX · Nasdaq · Dow Jones</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">

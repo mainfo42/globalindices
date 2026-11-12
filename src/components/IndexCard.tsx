@@ -18,9 +18,9 @@ export const IndexCard: React.FC<IndexCardProps> = ({
   onOpenDetails,
   onTriggerShock,
 }) => {
-  // Calculate change vs previous close
-  const changeValue = index.currentPrice - index.previousClose;
-  const changePct = (changeValue / index.previousClose) * 100;
+  // Calculate change vs previous close (prefer exact Google Finance change if provided)
+  const changeValue = index.change !== undefined ? index.change : (index.currentPrice - index.previousClose);
+  const changePct = index.changePercent !== undefined ? index.changePercent : ((changeValue / index.previousClose) * 100);
   // User requirement: "If it falls negative since last closing, make it red, if above and positive, make it green."
   const isPositive = changeValue >= 0;
 
@@ -50,7 +50,7 @@ export const IndexCard: React.FC<IndexCardProps> = ({
       }`}
     >
       {/* Slim Header Strip: Flag, Name, Symbol, Exchange & Timeframe Toggle Switches */}
-      <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/60">
+      <div className="flex items-center justify-between gap-3 px-3.5 py-1.5 border-b border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/60">
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-lg leading-none" title={index.country} role="img" aria-label={index.country}>
             {index.flag}
@@ -129,29 +129,29 @@ export const IndexCard: React.FC<IndexCardProps> = ({
       </div>
 
       {/* Main Content Body: Left = Huge Numbers & BIG GAIN/LOSS, Right = Graphical 24h Curve */}
-      <div className="p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch gap-4 justify-between">
+      <div className="p-3 sm:p-3.5 flex flex-col md:flex-row items-stretch gap-3.5 justify-between">
         {/* LEFT SECTION: Huge live number AND BIG GAIN/LOSS NUMBER */}
-        <div className="flex flex-col justify-between shrink-0 w-full md:w-[330px] lg:w-[370px] pr-0 md:pr-4 border-b md:border-b-0 md:border-r border-neutral-100 dark:border-neutral-800/80 pb-3 md:pb-0">
+        <div className="flex flex-col justify-between shrink-0 w-full md:w-[340px] lg:w-[380px] pr-0 md:pr-3.5 border-b md:border-b-0 md:border-r border-neutral-100 dark:border-neutral-800/80 pb-2.5 md:pb-0">
           <div>
-            {/* Top row: Label + Live Index Value */}
-            <div className="flex items-center justify-between">
+            {/* Top row: Label + Live/Frozen Indicator */}
+            <div className="flex items-center justify-between mb-0.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                Current Live Price
+                Current Value ({index.currency})
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-mono text-neutral-500 dark:text-neutral-400">
+              <span className="flex items-center gap-1.5 text-[10px] font-mono text-neutral-500 dark:text-neutral-400">
                 <span
-                  className={`inline-block w-1.5 h-1.5 rounded-full ${
-                    index.lastTickDirection === 'up' ? 'bg-emerald-500' : 'bg-rose-500'
+                  className={`inline-block w-2 h-2 rounded-full ${
+                    isPositive ? 'bg-emerald-500' : 'bg-rose-500'
                   }`}
                 />
-                Live
+                <span className="font-semibold text-neutral-600 dark:text-neutral-300">Google Finance</span>
               </span>
             </div>
 
-            {/* LIVE CURRENT VALUE */}
+            {/* LIVE CURRENT VALUE - HUGE NUMBER */}
             <div
               key={index.lastTickTime}
-              className={`text-2xl sm:text-3xl font-mono font-extrabold tracking-tight tabular-nums transition-colors duration-200 text-neutral-900 dark:text-neutral-100 py-0.5 rounded px-1 -mx-1 ${tickAnimClass}`}
+              className={`text-3xl sm:text-4xl lg:text-[42px] font-mono font-black tracking-tight tabular-nums transition-colors duration-200 text-neutral-900 dark:text-neutral-100 leading-tight py-0.5 rounded ${tickAnimClass}`}
             >
               {index.currentPrice.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
@@ -163,24 +163,24 @@ export const IndexCard: React.FC<IndexCardProps> = ({
               PROMPT REQUIREMENT: "Also, make bigger the number of the gain or loss.
               If it falls negative since last closing, make it red, if above and positive, make it green."
             */}
-            <div className="mt-1">
+            <div className="mt-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-0.5">
-                Today's Net Gain / Loss
+                Net Gain / Loss vs Last Close
               </span>
               <div
-                className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border font-mono font-black tabular-nums tracking-tight ${accentColorClass} ${badgeBorderClass}`}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border font-mono font-black tabular-nums tracking-tight ${accentColorClass} ${badgeBorderClass}`}
               >
                 {isPositive ? (
-                  <ArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
+                  <ArrowUpRight className="w-6 h-6 sm:w-7 sm:h-7 stroke-[3]" />
                 ) : (
-                  <ArrowDownRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
+                  <ArrowDownRight className="w-6 h-6 sm:w-7 sm:h-7 stroke-[3]" />
                 )}
-                {/* BIG GAIN OR LOSS NUMBER */}
-                <span className="text-xl sm:text-2xl lg:text-3xl font-black">
+                {/* VERY BIG GAIN OR LOSS NUMBER */}
+                <span className="text-2xl sm:text-3xl lg:text-[32px] font-black leading-none">
                   {changeValue >= 0 ? '+' : ''}
                   {changeValue.toFixed(2)}
                 </span>
-                <span className="text-sm sm:text-base lg:text-lg font-bold opacity-90">
+                <span className="text-sm sm:text-base lg:text-lg font-bold opacity-90 leading-none">
                   ({changePct >= 0 ? '+' : ''}
                   {changePct.toFixed(2)}%)
                 </span>
