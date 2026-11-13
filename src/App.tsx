@@ -89,8 +89,17 @@ export default function App() {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastSyncedLabel, setLastSyncedLabel] = useState<string>('');
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Synchronize with Google Finance API endpoint
+  // Keep open detail modal synced with latest indices updates cleanly outside state updaters
+  useEffect(() => {
+    setSelectedModalIndex((currentModal) => {
+      if (!currentModal) return null;
+      return indices.find((i) => i.id === currentModal.id) || currentModal;
+    });
+  }, [indices]);
+
+  // Synchronize with Google Finance API endpoint (supports Express /api/quotes & Netlify Functions /.netlify/functions/quotes)
   // - On landing (fresh=1&_t=Date.now()): ALWAYS fetches latest values straight from Google Finance website (even when closed)
   // - During 9:00 AM - 5:00 PM EST: Pulls fresh quotes every 60 seconds using real wall-clock time
   const syncGoogleFinance = useCallback(async (forceFresh = false, showSpinner = false) => {
@@ -100,25 +109,41 @@ export default function App() {
     if (showSpinner) setIsRefreshingGoogleFinance(true);
 
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 12000) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 14000) : null;
 
-    try {
-      const endpoint = forceFresh
-        ? `/api/quotes?fresh=1&_t=${Date.now()}`
-        : `/api/quotes?_t=${Date.now()}`;
-      const res = await fetch(endpoint, {
+    const fetchJsonQuotes = async (baseUrl: string) => {
+      const qs = forceFresh ? `fresh=1&_t=${Date.now()}` : `_t=${Date.now()}`;
+      const res = await fetch(`${baseUrl}?${qs}`, {
         method: 'GET',
         cache: 'no-store',
         signal: controller?.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store',
-          'Pragma': 'no-cache',
-        },
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Non-JSON response');
+      }
+      return res.json();
+    };
+
+    try {
+      let data: any = null;
+      try {
+        data = await fetchJsonQuotes('/api/quotes');
+      } catch (primaryErr) {
+        // Fallback directly to Netlify Serverless Function path if /api/quotes redirect isn't active
+        try {
+          data = await fetchJsonQuotes('/.netlify/functions/quotes');
+        } catch {
+          throw primaryErr;
+        }
+      }
+
       if (requestId !== syncRequestIdRef.current) return;
-      if (data && data.quotes) {
+      if (data && data.quotes && Object.keys(data.quotes).length > 0) {
+        setSyncError(null);
         if (data.estTime) {
           setEstTimeStr(data.estTime);
           setLastSyncedLabel(data.estTime);
@@ -135,8 +160,8 @@ export default function App() {
         hasInitialSyncRef.current = true;
         setIsInitialSyncing(false);
 
-        setIndices((prev) => {
-          const updated = prev.map((idx) => {
+        setIndices((prev) =>
+          prev.map((idx) => {
             const q = data.quotes[idx.id];
             if (!q) return idx;
 
@@ -204,19 +229,16 @@ export default function App() {
                 month: updatedMonth,
               },
             };
-          });
-
-          setSelectedModalIndex((currentModal) => {
-            if (!currentModal) return null;
-            return updated.find((i) => i.id === currentModal.id) || currentModal;
-          });
-
-          return updated;
-        });
+          })
+        );
+      } else {
+        throw new Error('Empty quotes payload');
       }
     } catch (err) {
       if (requestId !== syncRequestIdRef.current) return;
-      console.warn('Google Finance sync error:', err);
+      const errMsg = err instanceof Error ? err.message : 'Network error';
+      console.warn('Google Finance sync error:', errMsg);
+      setSyncError(errMsg);
       // Retry quickly if initial landing sync fails OR if a cellular/Wi-Fi hiccup occurs during open market hours
       const { isTradingHours } = isESTTradingHours();
       if (!hasInitialSyncRef.current || isTradingHours) {
@@ -455,7 +477,11 @@ export default function App() {
             <span>Real-time pull 1m (9:00 AM – 5:00 PM EST)</span>
             <span aria-hidden="true">·</span>
             <span className="text-neutral-600 dark:text-neutral-300">
-              {lastSyncedLabel ? `Synced ${lastSyncedLabel}` : 'Syncing live quotes...'}
+              {lastSyncedLabel
+                ? `Synced ${lastSyncedLabel}`
+                : syncError
+                ? `Retrying live sync (${syncError})...`
+                : 'Syncing live quotes...'}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
