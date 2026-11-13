@@ -100,13 +100,51 @@ function generateMonthSeries(baseClose: number, startTrend: number, volatility: 
   return points;
 }
 
+export function isESTTradingHours(date: Date = new Date()): {
+  isTradingHours: boolean;
+  estTimeStr: string;
+} {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+  const weekday = getPart('weekday');
+  const hour = parseInt(getPart('hour'), 10) % 24;
+  const minute = parseInt(getPart('minute'), 10);
+  const second = parseInt(getPart('second'), 10);
+  const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+  const isTradingHours = isWeekday && hour >= 9 && hour < 17;
+
+  const estTimeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second
+    .toString()
+    .padStart(2, '0')} EST`;
+
+  return { isTradingHours, estTimeStr };
+}
+
+export function buildDaySeriesForQuote(previousClose: number, currentPrice: number): DataPoint[] {
+  const trend = previousClose > 0 ? (currentPrice - previousClose) / previousClose : 0;
+  const series = generateDaySeries(previousClose, trend, 0.65);
+  if (series.length > 0) {
+    series[series.length - 1] = {
+      ...series[series.length - 1],
+      price: currentPrice,
+    };
+  }
+  return series;
+}
+
 export function initializeIndices(): MarketIndex[] {
   // 1. TSX Composite Index (Google Finance: OSPTX:INDEXTSI)
-  // Exact Google Finance real value: 36,411.72 (+241.27, +0.67%, prev close: 36,170.45)
-  const tsxClose = 36170.45;
-  const tsxCurrent = 36411.72;
-  const tsxDay = generateDaySeries(tsxClose, 0.0067, 0.65);
-  tsxDay[tsxDay.length - 1].price = tsxCurrent;
+  const tsxClose = 36411.72;
+  const tsxCurrent = 36137.19;
+  const tsxDay = buildDaySeriesForQuote(tsxClose, tsxCurrent);
 
   const tsxIndex: MarketIndex = {
     id: 'tsx',
@@ -120,18 +158,18 @@ export function initializeIndices(): MarketIndex[] {
     basePrice: tsxClose,
     previousClose: tsxClose,
     currentPrice: tsxCurrent,
-    change: 241.27,
-    changePercent: 0.67,
-    openPrice: 36215.10,
-    highPrice: 36495.13,
-    lowPrice: 36170.45,
+    change: -274.53,
+    changePercent: -0.75,
+    openPrice: 36360.10,
+    highPrice: 36367.41,
+    lowPrice: 36080.86,
     volume: '284.1M',
-    lastTickDirection: 'up',
+    lastTickDirection: 'down',
     lastTickTime: Date.now(),
     history: {
       day: tsxDay,
-      week: generateWeekSeries(tsxClose, 0.012, 0.95),
-      month: generateMonthSeries(tsxClose, 0.038, 1.2),
+      week: generateWeekSeries(tsxClose, 0.005, 0.95),
+      month: generateMonthSeries(tsxClose, 0.032, 1.2),
     },
     constituents: [
       { symbol: 'RY.TO', name: 'Royal Bank of Canada', weight: '6.4%', change: 0.85 },
@@ -148,11 +186,9 @@ export function initializeIndices(): MarketIndex[] {
   };
 
   // 2. Nasdaq Composite (Google Finance: .IXIC:INDEXNASDAQ)
-  // Exact Google Finance real value: 25,466.19 (+400.31, +1.60%, prev close: 25,065.88)
-  const nasdaqClose = 25065.88;
-  const nasdaqCurrent = 25466.19;
-  const nasdaqDay = generateDaySeries(nasdaqClose, 0.016, 0.85);
-  nasdaqDay[nasdaqDay.length - 1].price = nasdaqCurrent;
+  const nasdaqClose = 25466.19;
+  const nasdaqCurrent = 25366.09;
+  const nasdaqDay = buildDaySeriesForQuote(nasdaqClose, nasdaqCurrent);
 
   const nasdaqIndex: MarketIndex = {
     id: 'nasdaq',
@@ -166,18 +202,18 @@ export function initializeIndices(): MarketIndex[] {
     basePrice: nasdaqClose,
     previousClose: nasdaqClose,
     currentPrice: nasdaqCurrent,
-    change: 400.31,
-    changePercent: 1.60,
-    openPrice: 25140.20,
-    highPrice: 25649.85,
-    lowPrice: 25065.88,
+    change: -100.10,
+    changePercent: -0.39,
+    openPrice: 25440.20,
+    highPrice: 25597.23,
+    lowPrice: 25068.28,
     volume: '5.42B',
-    lastTickDirection: 'up',
+    lastTickDirection: 'down',
     lastTickTime: Date.now(),
     history: {
       day: nasdaqDay,
-      week: generateWeekSeries(nasdaqClose, 0.024, 1.2),
-      month: generateMonthSeries(nasdaqClose, 0.062, 1.4),
+      week: generateWeekSeries(nasdaqClose, 0.018, 1.2),
+      month: generateMonthSeries(nasdaqClose, 0.055, 1.4),
     },
     constituents: [
       { symbol: 'AAPL', name: 'Apple Inc', weight: '12.8%', change: 1.42 },
@@ -194,11 +230,9 @@ export function initializeIndices(): MarketIndex[] {
   };
 
   // 3. Dow Jones Industrial Average (Google Finance: .DJI:INDEXDJX)
-  // Exact Google Finance real value: 52,486.49 (+254.60, +0.49%, prev close: 52,231.89)
-  const dowClose = 52231.89;
-  const dowCurrent = 52486.49;
-  const dowDay = generateDaySeries(dowClose, 0.0049, 0.55);
-  dowDay[dowDay.length - 1].price = dowCurrent;
+  const dowClose = 52486.49;
+  const dowCurrent = 52297.09;
+  const dowDay = buildDaySeriesForQuote(dowClose, dowCurrent);
 
   const dowIndex: MarketIndex = {
     id: 'dow',
@@ -212,18 +246,18 @@ export function initializeIndices(): MarketIndex[] {
     basePrice: dowClose,
     previousClose: dowClose,
     currentPrice: dowCurrent,
-    change: 254.60,
-    changePercent: 0.49,
-    openPrice: 52280.50,
-    highPrice: 52512.72,
-    lowPrice: 52055.14,
+    change: -189.40,
+    changePercent: -0.36,
+    openPrice: 52510.50,
+    highPrice: 52751.22,
+    lowPrice: 52271.16,
     volume: '442.1M',
-    lastTickDirection: 'up',
+    lastTickDirection: 'down',
     lastTickTime: Date.now(),
     history: {
       day: dowDay,
-      week: generateWeekSeries(dowClose, 0.011, 0.85),
-      month: generateMonthSeries(dowClose, 0.028, 1.0),
+      week: generateWeekSeries(dowClose, 0.008, 0.85),
+      month: generateMonthSeries(dowClose, 0.025, 1.0),
     },
     constituents: [
       { symbol: 'GS', name: 'Goldman Sachs Group', weight: '8.2%', change: 0.95 },

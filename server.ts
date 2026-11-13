@@ -21,21 +21,18 @@ interface GoogleFinanceQuote {
   sourceUrl: string;
 }
 
-// In-memory cache initialized with the EXACT real closing values from Google Finance:
-// Dow Jones: 52,486.49 (+254.60, +0.49%, close: 52,231.89)
-// Nasdaq: 25,466.19 (+400.31, +1.60%, close: 25,065.88)
-// TSX: 36,411.72 (+241.27, +0.67%, close: 36,170.45)
+// In-memory cache initialized with latest verified Google Finance quotes (overwritten live on startup & landing):
 const quotesCache: Record<string, GoogleFinanceQuote> = {
   tsx: {
     symbol: '^GSPTSE',
     ticker: 'OSPTX:INDEXTSI',
     name: 'S&P/TSX Composite',
-    price: 36411.72,
-    previousClose: 36170.45,
-    change: 241.27,
-    changePercent: 0.67,
-    high: 36495.13,
-    low: 36170.45,
+    price: 36137.19,
+    previousClose: 36411.72,
+    change: -274.53,
+    changePercent: -0.75,
+    high: 36367.41,
+    low: 36080.86,
     yearHigh: 37069.11,
     yearLow: 29828.52,
     lastUpdated: new Date().toISOString(),
@@ -46,12 +43,12 @@ const quotesCache: Record<string, GoogleFinanceQuote> = {
     symbol: '^IXIC',
     ticker: '.IXIC:INDEXNASDAQ',
     name: 'Nasdaq Composite',
-    price: 25466.19,
-    previousClose: 25065.88,
-    change: 400.31,
-    changePercent: 1.60,
-    high: 25649.85,
-    low: 25065.88,
+    price: 25366.09,
+    previousClose: 25466.19,
+    change: -100.10,
+    changePercent: -0.39,
+    high: 25597.23,
+    low: 25068.28,
     yearHigh: 27722.75,
     yearLow: 20690.25,
     lastUpdated: new Date().toISOString(),
@@ -62,12 +59,12 @@ const quotesCache: Record<string, GoogleFinanceQuote> = {
     symbol: '^DJI',
     ticker: '.DJI:INDEXDJX',
     name: 'Dow Jones Industrial Average',
-    price: 52486.49,
-    previousClose: 52231.89,
-    change: 254.60,
-    changePercent: 0.49,
-    high: 52512.72,
-    low: 52055.14,
+    price: 52297.09,
+    previousClose: 52486.49,
+    change: -189.40,
+    changePercent: -0.36,
+    high: 52751.22,
+    low: 52271.16,
     yearHigh: 54744.33,
     yearLow: 45057.28,
     lastUpdated: new Date().toISOString(),
@@ -76,26 +73,43 @@ const quotesCache: Record<string, GoogleFinanceQuote> = {
   },
 };
 
-let lastPullTimestamp = Date.now();
-let isPulling = false;
+let lastPullTimestamp = 0;
+let activePullPromise: Promise<void> | null = null;
 
 // Check if current time is within 9:00 AM EST to 5:00 PM EST (Monday - Friday)
 function getESTStatus() {
   const now = new Date();
-  const estStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
-  const estDate = new Date(estStr);
-  const hour = estDate.getHours();
-  const day = estDate.getDay(); // 0 = Sun, 6 = Sat
-  const isWeekday = day >= 1 && day <= 5;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+
+  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+  const weekday = getPart('weekday');
+  const hour = parseInt(getPart('hour'), 10) % 24;
+  const minute = parseInt(getPart('minute'), 10);
+  const second = parseInt(getPart('second'), 10);
+  const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
 
   // Requirement: "From 5PM EST and 9h00 AM EST, the values should not move.
   // Then apply the update rule at every minute during the trading hours."
   const isTradingHours = isWeekday && hour >= 9 && hour < 17;
 
+  const estStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second
+    .toString()
+    .padStart(2, '0')} EST`;
+
   return {
     estStr,
     hour,
-    day,
+    weekday,
     isWeekday,
     isTradingHours,
   };
@@ -110,6 +124,7 @@ async function pullGoogleFinanceIndex(target: { id: string; ticker: string; url:
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
       signal: AbortSignal.timeout(9000),
     });
@@ -122,7 +137,7 @@ async function pullGoogleFinanceIndex(target: { id: string; ticker: string; url:
     const html = await res.text();
 
     // Primary DOM selector matching Google Finance main quote container
-    // <div class="N6SYTe"><span jsname="Pdsbrc"><span>52,486.49</span></span></div>...<span jsname="vY9t3b"><span>+0.49%</span></span>...<span jsname="xnruHf"><span>+254.60</span></span>
+    // <div class="N6SYTe"><span jsname="Pdsbrc"><span>52,297.09</span></span></div>...<span jsname="vY9t3b"><span>-0.36%</span></span>...<span jsname="xnruHf"><span>-189.40</span></span>
     const mainMatch = html.match(
       /class=\"N6SYTe\"[^>]*><span jsname=\"Pdsbrc\"[^>]*><span>([^<]+)<\/span><\/span><\/div>[\s\S]*?<span jsname=\"vY9t3b\"[^>]*><span[^>]*>([^<]+)<\/span><\/span>[\s\S]*?<span jsname=\"xnruHf\"[^>]*><span>([^<]+)<\/span><\/span>/
     );
@@ -167,37 +182,42 @@ async function pullGoogleFinanceIndex(target: { id: string; ticker: string; url:
   }
 }
 
-// Master puller for all 3 indices
+// Master puller for all 3 indices (coalesces concurrent pulls so callers always get fresh values)
 async function pullAllIndices() {
-  if (isPulling) return;
-  isPulling = true;
-  const startTime = Date.now();
-
-  const targets = [
-    { id: 'tsx', ticker: 'OSPTX:INDEXTSI', url: 'https://www.google.com/finance/quote/OSPTX:INDEXTSI', symbol: '^GSPTSE', name: 'S&P/TSX Composite' },
-    { id: 'nasdaq', ticker: '.IXIC:INDEXNASDAQ', url: 'https://www.google.com/finance/quote/.IXIC:INDEXNASDAQ', symbol: '^IXIC', name: 'Nasdaq Composite' },
-    { id: 'dow', ticker: '.DJI:INDEXDJX', url: 'https://www.google.com/finance/quote/.DJI:INDEXDJX', symbol: '^DJI', name: 'Dow Jones Industrial Average' },
-  ];
-
-  try {
-    const results = await Promise.allSettled(targets.map((t) => pullGoogleFinanceIndex(t)));
-
-    results.forEach((res, index) => {
-      const target = targets[index];
-      if (res.status === 'fulfilled' && res.value) {
-        quotesCache[target.id] = res.value;
-      }
-    });
-
-    lastPullTimestamp = Date.now();
-    console.log(
-      `[Google Finance] Pulled in ${Date.now() - startTime}ms. TSX: ${quotesCache.tsx.price}, Nasdaq: ${quotesCache.nasdaq.price}, Dow: ${quotesCache.dow.price}`
-    );
-  } catch (err) {
-    console.error('[Google Finance] Pull error:', err);
-  } finally {
-    isPulling = false;
+  if (activePullPromise) {
+    return activePullPromise;
   }
+
+  activePullPromise = (async () => {
+    const startTime = Date.now();
+    const targets = [
+      { id: 'tsx', ticker: 'OSPTX:INDEXTSI', url: 'https://www.google.com/finance/quote/OSPTX:INDEXTSI', symbol: '^GSPTSE', name: 'S&P/TSX Composite' },
+      { id: 'nasdaq', ticker: '.IXIC:INDEXNASDAQ', url: 'https://www.google.com/finance/quote/.IXIC:INDEXNASDAQ', symbol: '^IXIC', name: 'Nasdaq Composite' },
+      { id: 'dow', ticker: '.DJI:INDEXDJX', url: 'https://www.google.com/finance/quote/.DJI:INDEXDJX', symbol: '^DJI', name: 'Dow Jones Industrial Average' },
+    ];
+
+    try {
+      const results = await Promise.allSettled(targets.map((t) => pullGoogleFinanceIndex(t)));
+
+      results.forEach((res, index) => {
+        const target = targets[index];
+        if (res.status === 'fulfilled' && res.value) {
+          quotesCache[target.id] = res.value;
+        }
+      });
+
+      lastPullTimestamp = Date.now();
+      console.log(
+        `[Google Finance] Pulled in ${Date.now() - startTime}ms. TSX: ${quotesCache.tsx.price}, Nasdaq: ${quotesCache.nasdaq.price}, Dow: ${quotesCache.dow.price}`
+      );
+    } catch (err) {
+      console.error('[Google Finance] Pull error:', err);
+    } finally {
+      activePullPromise = null;
+    }
+  })();
+
+  return activePullPromise;
 }
 
 // Initial pull on server boot to ensure exact current values
@@ -211,14 +231,22 @@ setInterval(() => {
   if (estStatus.isTradingHours) {
     console.log('[Google Finance] Trading hours (9h00 - 17h00 EST): Pulling 1-minute live quote update...');
     pullAllIndices();
-  } else {
-    // Markets closed: Values must not move. Automatic updates only resume when markets open next day.
-    // Do not modify quotesCache.
   }
 }, 60 * 1000);
 
 // API Endpoints
-app.get('/api/quotes', (req, res) => {
+app.get('/api/quotes', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  // Always pull fresh values from Google Finance when landing on the page (?fresh=1)
+  // or whenever the cached values are older than 5 seconds.
+  const forceFresh = req.query.fresh === '1';
+  if (forceFresh || Date.now() - lastPullTimestamp > 5000) {
+    await pullAllIndices();
+  }
+
   const estStatus = getESTStatus();
   res.json({
     status: 'success',
@@ -237,6 +265,10 @@ app.get('/api/quotes', (req, res) => {
 
 // Manual refresh trigger
 app.post('/api/quotes/refresh', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   await pullAllIndices();
   const estStatus = getESTStatus();
   res.json({
@@ -245,6 +277,7 @@ app.post('/api/quotes/refresh', async (req, res) => {
     estTime: estStatus.estStr,
     isTradingHours: estStatus.isTradingHours,
     marketStatus: estStatus.isTradingHours ? 'OPEN' : 'CLOSED',
+    lastPullTimestamp,
     quotes: quotesCache,
   });
 });
