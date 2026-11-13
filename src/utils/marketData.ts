@@ -104,28 +104,43 @@ export function isESTTradingHours(date: Date = new Date()): {
   isTradingHours: boolean;
   estTimeStr: string;
 } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
 
-  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
-  const weekday = getPart('weekday');
-  const hour = parseInt(getPart('hour'), 10) % 24;
-  const minute = parseInt(getPart('minute'), 10);
-  const second = parseInt(getPart('second'), 10);
-  const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
-  const isTradingHours = isWeekday && hour >= 9 && hour < 17;
+    const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+    const weekday = getPart('weekday');
+    const hour = parseInt(getPart('hour'), 10) % 24;
+    const minute = parseInt(getPart('minute'), 10);
+    const second = parseInt(getPart('second'), 10);
+    const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+    const isTradingHours = isWeekday && hour >= 9 && hour < 17;
 
-  const estTimeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second
-    .toString()
-    .padStart(2, '0')} EST`;
+    const estTimeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second
+      .toString()
+      .padStart(2, '0')} EST`;
 
-  return { isTradingHours, estTimeStr };
+    return { isTradingHours, estTimeStr };
+  } catch {
+    // Fallback for restricted mobile WebViews without full ICU timezone data (EST = UTC-5)
+    const estDate = new Date(date.getTime() - 5 * 60 * 60 * 1000);
+    const day = estDate.getUTCDay();
+    const hour = estDate.getUTCHours();
+    const minute = estDate.getUTCMinutes();
+    const second = estDate.getUTCSeconds();
+    const isWeekday = day >= 1 && day <= 5;
+    const isTradingHours = isWeekday && hour >= 9 && hour < 17;
+    const estTimeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second
+      .toString()
+      .padStart(2, '0')} EST`;
+    return { isTradingHours, estTimeStr };
+  }
 }
 
 export function buildDaySeriesForQuote(previousClose: number, currentPrice: number): DataPoint[] {

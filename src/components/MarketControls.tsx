@@ -105,10 +105,10 @@ export const MarketControls: React.FC<MarketControlsProps> = ({
             <button
               onClick={onRefreshGoogleFinance}
               disabled={isRefreshingGoogleFinance}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-md text-xs font-mono font-medium border transition-colors touch-manipulation ${
                 isRefreshingGoogleFinance
                   ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 cursor-wait'
-                  : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                  : 'bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 text-blue-600 dark:text-blue-400 border-blue-500/20'
               }`}
               title="Fetch live quotes from Google Finance website"
             >

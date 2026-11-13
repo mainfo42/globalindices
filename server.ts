@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
@@ -88,7 +89,7 @@ function getESTStatus() {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(now);
 
   const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
@@ -118,12 +119,14 @@ function getESTStatus() {
 // Function to pull real-time index value from Google Finance website
 async function pullGoogleFinanceIndex(target: { id: string; ticker: string; url: string; symbol: string; name: string }) {
   try {
-    const res = await fetch(target.url, {
+    const fetchUrl = `${target.url}?hl=en&_t=${Date.now()}`;
+    const res = await fetch(fetchUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
+        'Cookie': 'CONSENT=YES+cb; SOCS=CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmVuIAEaBgiA_LyaBg',
+        'Cache-Control': 'no-cache, no-store, max-age=0',
         'Pragma': 'no-cache',
       },
       signal: AbortSignal.timeout(9000),
@@ -137,7 +140,6 @@ async function pullGoogleFinanceIndex(target: { id: string; ticker: string; url:
     const html = await res.text();
 
     // Primary DOM selector matching Google Finance main quote container
-    // <div class="N6SYTe"><span jsname="Pdsbrc"><span>52,297.09</span></span></div>...<span jsname="vY9t3b"><span>-0.36%</span></span>...<span jsname="xnruHf"><span>-189.40</span></span>
     const mainMatch = html.match(
       /class=\"N6SYTe\"[^>]*><span jsname=\"Pdsbrc\"[^>]*><span>([^<]+)<\/span><\/span><\/div>[\s\S]*?<span jsname=\"vY9t3b\"[^>]*><span[^>]*>([^<]+)<\/span><\/span>[\s\S]*?<span jsname=\"xnruHf\"[^>]*><span>([^<]+)<\/span><\/span>/
     );
@@ -175,6 +177,27 @@ async function pullGoogleFinanceIndex(target: { id: string; ticker: string; url:
       };
     }
 
+    // Fallback DOM selector in case Google serves YMlKec layout
+    const ymlPriceMatch = html.match(/class=\"YMlKec fxKbKc\"[^>]*>([^<]+)<\/div>/);
+    if (ymlPriceMatch) {
+      const price = parseFloat(ymlPriceMatch[1].replace(/[^0-9.-]/g, ''));
+      if (!Number.isNaN(price) && price > 0) {
+        const prev = quotesCache[target.id]?.previousClose || price;
+        const change = Math.round((price - prev) * 100) / 100;
+        const changePercent = prev > 0 ? Math.round(((change / prev) * 100) * 100) / 100 : 0;
+        return {
+          ...quotesCache[target.id],
+          price,
+          change,
+          changePercent,
+          lastUpdated: new Date().toISOString(),
+          source: 'Google Finance (Live Web Pull)',
+          sourceUrl: target.url,
+        };
+      }
+    }
+
+    console.warn(`[Google Finance] Could not parse quote markup for ${target.ticker} (html len: ${html.length})`);
     return null;
   } catch (err) {
     console.error(`[Google Finance] Pull error for ${target.ticker}:`, err);
@@ -199,17 +222,23 @@ async function pullAllIndices() {
     try {
       const results = await Promise.allSettled(targets.map((t) => pullGoogleFinanceIndex(t)));
 
+      let successCount = 0;
       results.forEach((res, index) => {
         const target = targets[index];
         if (res.status === 'fulfilled' && res.value) {
           quotesCache[target.id] = res.value;
+          successCount += 1;
         }
       });
 
-      lastPullTimestamp = Date.now();
-      console.log(
-        `[Google Finance] Pulled in ${Date.now() - startTime}ms. TSX: ${quotesCache.tsx.price}, Nasdaq: ${quotesCache.nasdaq.price}, Dow: ${quotesCache.dow.price}`
-      );
+      if (successCount > 0) {
+        lastPullTimestamp = Date.now();
+        console.log(
+          `[Google Finance] Pulled ${successCount}/3 in ${Date.now() - startTime}ms. TSX: ${quotesCache.tsx.price}, Nasdaq: ${quotesCache.nasdaq.price}, Dow: ${quotesCache.dow.price}`
+        );
+      } else {
+        console.warn('[Google Finance] Pull completed with 0 parsed quotes; keeping lastPullTimestamp unchanged.');
+      }
     } catch (err) {
       console.error('[Google Finance] Pull error:', err);
     } finally {
@@ -284,7 +313,11 @@ app.post('/api/quotes/refresh', async (req, res) => {
 
 async function main() {
   if (process.env.NODE_ENV === 'production') {
-    app.use(express.static('dist'));
+    const distDir = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distDir));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
   } else {
     const vite = await createViteServer({
       server: { middlewareMode: true },

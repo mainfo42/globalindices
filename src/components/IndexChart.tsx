@@ -152,7 +152,8 @@ export const IndexChart: React.FC<IndexChartProps> = ({
       onTouchStart={handleTouchMove}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleMouseLeave}
-      className="relative w-full select-none cursor-crosshair group"
+      onTouchCancel={handleMouseLeave}
+      className="relative w-full select-none cursor-crosshair touch-pan-y group"
       style={{ height }}
     >
       <svg

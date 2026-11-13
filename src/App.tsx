@@ -81,34 +81,59 @@ export default function App() {
   const [isRefreshingGoogleFinance, setIsRefreshingGoogleFinance] = useState<boolean>(false);
 
   const hasInitialSyncRef = useRef<boolean>(false);
+  const isSyncInFlightRef = useRef<boolean>(false);
+  const syncRequestIdRef = useRef<number>(0);
   const prevTradingRef = useRef<boolean>(initialEST.isTradingHours);
-  const secondsCounterRef = useRef<number>(60);
+  const nextPullAtRef = useRef<number>(Date.now() + 60_000);
+  const lastSuccessfulPullAtRef = useRef<number>(0);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lastSyncedLabel, setLastSyncedLabel] = useState<string>('');
+  const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
 
   // Synchronize with Google Finance API endpoint
-  // - On landing (fresh=1): ALWAYS pulls live values straight from Google Finance website
-  // - During 9:00 AM - 5:00 PM EST: Pulls fresh quotes every 60 seconds
+  // - On landing (fresh=1&_t=Date.now()): ALWAYS fetches latest values straight from Google Finance website (even when closed)
+  // - During 9:00 AM - 5:00 PM EST: Pulls fresh quotes every 60 seconds using real wall-clock time
   const syncGoogleFinance = useCallback(async (forceFresh = false, showSpinner = false) => {
+    if (isSyncInFlightRef.current && !showSpinner) return;
+    const requestId = ++syncRequestIdRef.current;
+    isSyncInFlightRef.current = true;
     if (showSpinner) setIsRefreshingGoogleFinance(true);
+
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 12000) : null;
+
     try {
-      const endpoint = forceFresh ? '/api/quotes?fresh=1' : '/api/quotes';
+      const endpoint = forceFresh
+        ? `/api/quotes?fresh=1&_t=${Date.now()}`
+        : `/api/quotes?_t=${Date.now()}`;
       const res = await fetch(endpoint, {
         method: 'GET',
         cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' },
+        signal: controller?.signal,
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache',
+        },
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (requestId !== syncRequestIdRef.current) return;
       if (data && data.quotes) {
-        if (data.estTime) setEstTimeStr(data.estTime);
+        if (data.estTime) {
+          setEstTimeStr(data.estTime);
+          setLastSyncedLabel(data.estTime);
+        }
         const isTrading = typeof data.isTradingHours === 'boolean'
           ? data.isTradingHours
           : isESTTradingHours().isTradingHours;
         setIsTradingWindow(isTrading);
-        secondsCounterRef.current = 60;
+        lastSuccessfulPullAtRef.current = Date.now();
+        nextPullAtRef.current = Date.now() + 60_000;
         setNextPullSeconds(60);
 
         const isFirstSync = !hasInitialSyncRef.current;
         hasInitialSyncRef.current = true;
+        setIsInitialSyncing(false);
 
         setIndices((prev) => {
           const updated = prev.map((idx) => {
@@ -128,7 +153,7 @@ export default function App() {
               const timeLabel = estNow.estTimeStr.slice(0, 5);
               const lastPt = updatedDay[updatedDay.length - 1];
 
-              if (lastPt && Date.now() - lastPt.timestamp >= 50000) {
+              if (lastPt && Date.now() - lastPt.timestamp >= 50_000) {
                 updatedDay.push({
                   timestamp: Date.now(),
                   timeLabel,
@@ -142,6 +167,22 @@ export default function App() {
                   price: q.price,
                 };
               }
+            }
+
+            const updatedWeek = [...idx.history.week];
+            if (updatedWeek.length > 0) {
+              updatedWeek[updatedWeek.length - 1] = {
+                ...updatedWeek[updatedWeek.length - 1],
+                price: q.price,
+              };
+            }
+
+            const updatedMonth = [...idx.history.month];
+            if (updatedMonth.length > 0) {
+              updatedMonth[updatedMonth.length - 1] = {
+                ...updatedMonth[updatedMonth.length - 1],
+                price: q.price,
+              };
             }
 
             return {
@@ -159,6 +200,8 @@ export default function App() {
               history: {
                 ...idx.history,
                 day: updatedDay,
+                week: updatedWeek,
+                month: updatedMonth,
               },
             };
           });
@@ -172,29 +215,45 @@ export default function App() {
         });
       }
     } catch (err) {
+      if (requestId !== syncRequestIdRef.current) return;
       console.warn('Google Finance sync error:', err);
+      // Retry quickly if initial landing sync fails OR if a cellular/Wi-Fi hiccup occurs during open market hours
+      const { isTradingHours } = isESTTradingHours();
+      if (!hasInitialSyncRef.current || isTradingHours) {
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => {
+          syncGoogleFinance(true, false);
+        }, !hasInitialSyncRef.current ? 2500 : 5000);
+      }
     } finally {
-      if (showSpinner) setIsRefreshingGoogleFinance(false);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (requestId === syncRequestIdRef.current) {
+        isSyncInFlightRef.current = false;
+        if (showSpinner) setIsRefreshingGoogleFinance(false);
+      }
     }
   }, []);
 
   // Trading Hours & Update Rule:
-  // 1. Always sync live from Google Finance website immediately when a user lands on the page.
-  // 2. From 9:00 AM EST to 5:00 PM EST (open market window), automatically update every minute if the user stays on the page.
-  // 3. From 5:00 PM EST to 9:00 AM EST (and weekends), values remain frozen at last close.
+  // 1. Always sync live from Google Finance website immediately when a user lands on the page (even if markets are closed).
+  // 2. From 9:00 AM EST to 5:00 PM EST (open market window), automatically update every minute using wall-clock time.
+  // 3. Re-sync immediately if the mobile browser tab/app resumes from sleep, bfcache, focus, or network recovery.
+  // 4. From 5:00 PM EST to 9:00 AM EST (and weekends), values remain frozen at last close after initial sync.
   useEffect(() => {
     // Immediate live pull on page load
+    nextPullAtRef.current = Date.now() + 60_000;
     syncGoogleFinance(true, false);
 
-    const secondInterval = setInterval(() => {
+    const checkAndTick = () => {
+      const nowMs = Date.now();
       const { isTradingHours, estTimeStr: currentEst } = isESTTradingHours();
       setEstTimeStr(currentEst);
       setIsTradingWindow(isTradingHours);
 
-      // If we just entered the open market window (09:00 AM EST), start updating immediately
+      // If we just entered the open market window (09:00 AM EST), pull immediately
       if (!prevTradingRef.current && isTradingHours) {
         prevTradingRef.current = true;
-        secondsCounterRef.current = 60;
+        nextPullAtRef.current = nowMs + 60_000;
         setNextPullSeconds(60);
         syncGoogleFinance(true, false);
         return;
@@ -203,23 +262,49 @@ export default function App() {
       prevTradingRef.current = isTradingHours;
 
       if (isTradingHours) {
-        if (secondsCounterRef.current <= 1) {
-          secondsCounterRef.current = 60;
+        const remainingMs = nextPullAtRef.current - nowMs;
+        if (remainingMs <= 0) {
+          nextPullAtRef.current = nowMs + 60_000;
           setNextPullSeconds(60);
           syncGoogleFinance(true, false);
         } else {
-          secondsCounterRef.current -= 1;
-          setNextPullSeconds(secondsCounterRef.current);
+          setNextPullSeconds(Math.max(1, Math.ceil(remainingMs / 1000)));
         }
       } else {
         // Frozen outside trading hours
-        secondsCounterRef.current = 60;
+        nextPullAtRef.current = nowMs + 60_000;
         setNextPullSeconds(60);
       }
-    }, 1000);
+    };
+
+    const secondInterval = setInterval(checkAndTick, 1000);
+
+    // Handle mobile/background tab wake-up & iOS/Android bfcache restore:
+    // Re-sync right away if >55s elapsed so returning users see current live or latest closing figures.
+    const handleResume = (event?: Event) => {
+      if (document.visibilityState === 'hidden') return;
+      const isPageShowPersisted =
+        event && 'persisted' in event && Boolean((event as PageTransitionEvent).persisted);
+      const elapsedSinceLast = Date.now() - lastSuccessfulPullAtRef.current;
+      if (!hasInitialSyncRef.current || isPageShowPersisted || elapsedSinceLast >= 55_000) {
+        nextPullAtRef.current = Date.now() + 60_000;
+        setNextPullSeconds(60);
+        syncGoogleFinance(true, false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleResume);
+    window.addEventListener('focus', handleResume);
+    window.addEventListener('online', handleResume);
+    window.addEventListener('pageshow', handleResume);
 
     return () => {
       clearInterval(secondInterval);
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      document.removeEventListener('visibilitychange', handleResume);
+      window.removeEventListener('focus', handleResume);
+      window.removeEventListener('online', handleResume);
+      window.removeEventListener('pageshow', handleResume);
     };
   }, [syncGoogleFinance]);
 
@@ -304,7 +389,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen lg:h-screen flex flex-col justify-between bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans transition-colors duration-200 overflow-x-hidden lg:overflow-hidden">
+    <div className="min-h-dvh lg:h-dvh flex flex-col justify-between bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans transition-colors duration-200 overflow-x-hidden lg:overflow-hidden">
       {/* 3-Zone Header Contract (Compact) */}
       <TerminalHeader
         isDarkMode={isDarkMode}
@@ -330,7 +415,7 @@ export default function App() {
           onResetBenchmark={handleResetBenchmark}
           onTriggerGlobalShock={handleTriggerGlobalShock}
           onRefreshGoogleFinance={() => syncGoogleFinance(true, true)}
-          isRefreshingGoogleFinance={isRefreshingGoogleFinance}
+          isRefreshingGoogleFinance={isRefreshingGoogleFinance || isInitialSyncing}
           nextPullSeconds={nextPullSeconds}
           isTradingWindow={isTradingWindow}
         />
@@ -368,8 +453,10 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="text-blue-500 font-semibold">Google Finance:</span>
             <span>Real-time pull 1m (9:00 AM – 5:00 PM EST)</span>
-            <span aria-hidden="true" className="hidden sm:inline">·</span>
-            <span className="hidden sm:inline">TSX · Nasdaq · Dow Jones</span>
+            <span aria-hidden="true">·</span>
+            <span className="text-neutral-600 dark:text-neutral-300">
+              {lastSyncedLabel ? `Synced ${lastSyncedLabel}` : 'Syncing live quotes...'}
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-1">

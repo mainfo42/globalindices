@@ -135,8 +135,8 @@ export const IndexDetailModal: React.FC<IndexDetailModalProps> = ({
           </div>
 
           {/* Right: Expanded Interactive Curve */}
-          <div className="lg:col-span-2 flex flex-col justify-between p-5 rounded-xl bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-200 dark:border-neutral-800/80">
-            <div className="flex items-center justify-between mb-2">
+          <div className="lg:col-span-2 flex flex-col justify-between p-3.5 sm:p-5 rounded-xl bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-200 dark:border-neutral-800/80 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                 {timeframe === 'day' ? 'Last 24 Hours High-Definition Curve' : timeframe === 'week' ? 'Past 7 Days Trading Action' : 'Past 30 Days Trend'}
               </span>
