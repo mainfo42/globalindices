@@ -38,25 +38,25 @@ export const IndexDetailModal: React.FC<IndexDetailModalProps> = ({
       aria-label={`${index.name} Detailed Inspection`}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
     >
-      <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xl p-6 sm:p-8">
+      <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xl p-4 sm:p-8">
         {/* Header Strip */}
-        <div className="flex items-center justify-between pb-5 border-b border-neutral-200 dark:border-neutral-800">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl" role="img" aria-label={index.country}>
+        <div className="flex items-start sm:items-center justify-between gap-2 pb-4 sm:pb-5 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <span className="text-2xl sm:text-3xl shrink-0" role="img" aria-label={index.country}>
               {index.flag}
             </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h2 className="text-lg sm:text-2xl font-bold text-neutral-900 dark:text-white truncate">
                   {index.name}
                 </h2>
-                <span className="text-sm font-mono font-semibold px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                <span className="text-xs sm:text-sm font-mono font-semibold px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
                   {index.symbol}
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-2">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>{index.exchange} ({index.currency})</span>
-                <span aria-hidden="true">·</span>
+                <span aria-hidden="true" className="hidden sm:inline">·</span>
                 <a
                   href={index.googleFinanceUrl}
                   target="_blank"
@@ -71,22 +71,22 @@ export const IndexDetailModal: React.FC<IndexDetailModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Live Value & Chart Area */}
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        <div className="mt-4 sm:mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
           {/* Left: Huge Live Value + Primary Stats */}
-          <div className="flex flex-col justify-between p-5 rounded-xl bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-200 dark:border-neutral-800/80">
-            <div>
+          <div className="flex flex-col justify-between p-4 sm:p-5 rounded-xl bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-200 dark:border-neutral-800/80 min-w-0">
+            <div className="min-w-0">
               <span className="text-xs uppercase font-medium text-neutral-500 dark:text-neutral-400 tracking-wider">
                 Current Index Value
               </span>
               <div
-                className={`text-4xl sm:text-5xl font-mono font-extrabold tracking-tight tabular-nums mt-1 ${
+                className={`text-3xl sm:text-5xl font-mono font-extrabold tracking-tight tabular-nums mt-1 break-words ${
                   isPositive ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'
                 }`}
               >
@@ -96,18 +96,21 @@ export const IndexDetailModal: React.FC<IndexDetailModalProps> = ({
                 })}
               </div>
 
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex flex-wrap items-center gap-2 mt-2">
                 <div
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-sm font-mono font-bold border ${
+                  className={`inline-flex flex-wrap items-center gap-1.5 max-w-full px-2.5 py-1 rounded text-sm sm:text-base font-mono font-bold border ${
                     isPositive
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                       : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                   }`}
                 >
-                  {isPositive ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                  <span>
+                  {isPositive ? <ArrowUpRight className="w-4 h-4 shrink-0" /> : <ArrowDownRight className="w-4 h-4 shrink-0" />}
+                  <span className="whitespace-nowrap">
                     {changeValue >= 0 ? '+' : ''}
-                    {changeValue.toFixed(2)} ({changePct >= 0 ? '+' : ''}
+                    {changeValue.toFixed(2)}
+                  </span>
+                  <span className="whitespace-nowrap">
+                    ({changePct >= 0 ? '+' : ''}
                     {changePct.toFixed(2)}%)
                   </span>
                 </div>

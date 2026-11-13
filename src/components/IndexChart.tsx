@@ -113,14 +113,24 @@ export const IndexChart: React.FC<IndexChartProps> = ({
     return { linePath: path, areaPath: area };
   }, [pointsWithCoords, chartHeight, padding.top]);
 
-  // Handle cursor interaction
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Handle cursor & touch interaction
+  const updateHoverFromClientX = (clientX: number) => {
     if (!containerRef.current || pointsWithCoords.length === 0) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const relativeX = e.clientX - rect.left;
+    const relativeX = clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, relativeX / rect.width));
     const targetIdx = Math.round(ratio * (pointsWithCoords.length - 1));
     setHoverIndex(targetIdx);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    updateHoverFromClientX(e.clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length > 0) {
+      updateHoverFromClientX(e.touches[0].clientX);
+    }
   };
 
   const handleMouseLeave = () => {
@@ -139,6 +149,9 @@ export const IndexChart: React.FC<IndexChartProps> = ({
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchMove}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleMouseLeave}
       className="relative w-full select-none cursor-crosshair group"
       style={{ height }}
     >

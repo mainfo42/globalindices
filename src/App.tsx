@@ -304,7 +304,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col justify-between bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans transition-colors duration-200 overflow-hidden">
+    <div className="min-h-screen lg:h-screen flex flex-col justify-between bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans transition-colors duration-200 overflow-x-hidden lg:overflow-hidden">
       {/* 3-Zone Header Contract (Compact) */}
       <TerminalHeader
         isDarkMode={isDarkMode}
@@ -317,8 +317,8 @@ export default function App() {
         isTradingWindow={isTradingWindow}
       />
 
-      {/* Main Content Workspace - Fitted to Viewport */}
-      <main className="flex-1 flex flex-col justify-between max-w-[1720px] w-full mx-auto px-3 sm:px-5 lg:px-6 py-2 sm:py-2.5 gap-2 min-h-0 overflow-y-auto lg:overflow-hidden">
+      {/* Main Content Workspace - Responsive on mobile, fitted to viewport on desktop */}
+      <main className="flex-1 flex flex-col lg:justify-between max-w-[1720px] w-full mx-auto px-2.5 sm:px-5 lg:px-6 py-2 sm:py-2.5 gap-2.5 lg:gap-2 min-h-0 lg:overflow-hidden">
         {/* Interactive Controls & Global Timeframe Switcher (Compact) */}
         <MarketControls
           isLive={isLive}
@@ -346,10 +346,10 @@ export default function App() {
         */}
         <section
           aria-label="North American Core Indices"
-          className="flex-1 flex flex-col justify-between min-h-0 gap-2 w-full"
+          className="flex-1 flex flex-col lg:justify-between lg:min-h-0 gap-2.5 lg:gap-2 w-full"
         >
           {/* 3 rectangular boxes stacked one on top of the other, starting with TSX */}
-          <div className="flex-1 flex flex-col justify-between gap-2 sm:gap-2.5 w-full min-h-0">
+          <div className="flex-1 flex flex-col lg:justify-between gap-3 sm:gap-2.5 w-full lg:min-h-0">
             {indices.map((idx) => (
               <IndexCard
                 key={idx.id}
@@ -363,15 +363,15 @@ export default function App() {
           </div>
         </section>
 
-        {/* Tiny single-line compact footer to fit cleanly on screen */}
-        <div className="flex items-center justify-between text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-2 py-0.5 border-t border-neutral-200/60 dark:border-neutral-800/60 shrink-0">
-          <div className="flex items-center gap-2">
+        {/* Compact footer - wraps cleanly on mobile */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-1.5 sm:px-2 py-1.5 lg:py-0.5 border-t border-neutral-200/60 dark:border-neutral-800/60 shrink-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="text-blue-500 font-semibold">Google Finance:</span>
-            <span>Real-time web pull every 1m (9h00 AM – 5h00 PM EST)</span>
+            <span>Real-time pull 1m (9:00 AM – 5:00 PM EST)</span>
             <span aria-hidden="true" className="hidden sm:inline">·</span>
             <span className="hidden sm:inline">TSX · Nasdaq · Dow Jones</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               <span>&ge; Close: Green</span>
